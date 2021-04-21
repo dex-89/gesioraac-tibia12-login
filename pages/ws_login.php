@@ -11,6 +11,12 @@ function sendError($msg){
 	$ret["errorMessage"] = $msg;
 	die(json_encode($ret));
 }
+
+function sendMessage($message, $code = 3) {
+	$response = json_encode(array('errorCode' => $code, 'errorMessage' => $message));
+	die($response);
+}
+
 # event schedule function
 function parseEvent($table1, $date, $table2, $bool){
 if ($table1) {
@@ -41,6 +47,7 @@ if ($table1) {
 
 $request = file_get_contents('php://input');
 $result = json_decode($request);
+
 $action = isset($result->type) ? $result->type : '';
 
 switch ($action) {
@@ -135,10 +142,11 @@ switch ($action) {
 
 		$save = false;
 		$timeNow = time();
-		$query = $SQL->query("select `premdays`, `lastday` from `accounts` where `id` = " . $account->getId());
+		$query = $SQL->query("select `premdays`, `lastday`, `secret` from `accounts` where `id` = " . $account->getId());
 			if($query->rowCount() > 0) {
 				$query = $query->fetch();
 				$premDays = (int)$query['premdays'];
+				$secret = $query['secret'];
 				$lastDay = (int)$query['lastday'];
 				$lastLogin = $lastDay;
 			}
@@ -168,6 +176,24 @@ switch ($action) {
 			$lastDay = 0;
 			$save = true;
 		}
+		
+		if(!empty($secret) && $secret !== NULL)
+		{
+			$token = $result->token;
+			if ($token === false)
+			{
+				sendMessage('Submit a valid two-factor authentication token.', 6);
+			} 
+			else
+			{
+				require_once("system/load.twoFactors.php");
+				if (!TokenAuth6238::verify($secret, $token))
+				{
+					sendMessage('Two-factor authentication failed, token is wrong.',6);
+				}
+			}
+		}
+		
 		if($save) {
 			$SQL->query("update `accounts` set `premdays` = " . $premDays . ", `lastday` = " . $lastDay . " where `id` = " . $account->getId());
 		}
